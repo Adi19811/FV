@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skaner Faktur AI</title>
+    <meta name="description" content="Aplikacja do automatycznego odczytywania danych z faktur przy użyciu sztucznej inteligencji.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-elements">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="dashboard">
+        <header class="glass-panel header">
+            <h1>Skaner Faktur <span>AI</span></h1>
+            <button id="settingsBtn" class="icon-btn" title="Ustawienia API">⚙️</button>
+        </header>
+
+        <section class="upload-section glass-panel">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-icon">📄</div>
+                <h2>Upuść fakturę tutaj</h2>
+                <p>Obsługiwane: Zdjęcia (JPG/PNG) oraz pliki PDF (z tekstem)</p>
+                <input type="file" id="fileInput" accept="image/jpeg, image/png, application/pdf" style="display: none;">
+                
+                <!-- Opcja archiwizacji -->
+                <div style="margin-top: 1.5rem;">
+                    <button id="setArchiveFolderBtn" class="secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.85rem; border: 1px solid rgba(0,0,0,0.1);">📂 Połącz z systemowym folderem Archiwum na skany</button>
+                    <p id="archiveStatus" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;"></p>
+                </div>
+            </div>
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="spinner"></div>
+                <p id="loadingText">Przetwarzanie faktury przez AI...</p>
+            </div>
+        </section>
+
+        <section class="summary-section glass-panel">
+            <div class="section-header">
+                <h2>Raport Kasowy / Miesiąc</h2>
+                <div class="header-actions">
+                    <select id="monthSelector" class="month-selector">
+                        <!-- Wygenerowane dynamicznie -->
+                    </select>
+                    <button id="exportCsvBtn" class="export-btn" title="Pobierz plik widoczny w arkuszu (Excel/Google Sheets)">📥 Pobierz Arkusz</button>
+                </div>
+            </div>
+
+            <!-- Nowy panel z saldem -->
+            <div class="balance-panel">
+                <div class="balance-item">
+                    <label>Stan poprzedni (początkowy):</label>
+                    <div class="balance-input-wrapper">
+                        <input type="number" id="initialBalance" value="0.00" step="0.01">
+                        <span>PLN</span>
+                    </div>
+                </div>
+                <div class="balance-item">
+                    <label>Suma wydatków (rozchód):</label>
+                    <strong id="expensesTotal" class="text-danger">0.00 PLN</strong>
+                </div>
+                <div class="balance-item highlight">
+                    <label>Stan obecny (saldo końcowe):</label>
+                    <strong id="finalBalance">0.00 PLN</strong>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="invoicesTable">
+                    <thead>
+                        <tr>
+                            <th>Data Dodania</th>
+                            <th>Nr Faktury</th>
+                            <th>Opis</th>
+                            <th class="amount-col">Kwota (PLN)</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoicesTbody">
+                        <!-- Wiersze faktur -->
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="total-label">Suma całkowita:</td>
+                            <td class="total-amount" id="totalAmount">0.00 PLN</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Ustawień -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h2>Konfiguracja AI</h2>
+            <p class="modal-desc">Aby rozpoznawać faktury, wprowadź darmowy klucz Google Gemini API.</p>
+            
+            <div class="input-group">
+                <label for="apiKeyInput">Klucz Gemini API</label>
+                <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="help-link">Kliknij tutaj, aby wygenerować darmowy klucz API (wymaga logowania Google)</a>
+            </div>
+
+            <div class="modal-actions">
+                <button id="saveSettingsBtn" class="primary-btn">Zapisz ustawienia</button>
+                <button id="closeSettingsBtn" class="secondary-btn">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WŁASNE OKNO POTWIERDZENIA USUNIĘCIA (omijające blokady przeglądarki na plikach lokalnych) -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Potwierdzenie usunięcia</h2>
+            <p class="modal-desc">Czy na pewno chcesz bezpowrotnie wykasować wybraną fakturę z tego miesięcznego raportu kasowego?</p>
+            <div class="modal-actions">
+                <button id="cancelDeleteBtn" class="secondary-btn">Anuluj</button>
+                <button id="confirmDeleteBtn" class="primary-btn" style="background: var(--danger-color);">Tak, usuń fakturę</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zmiana na zaawansowaną bibliotekę ExcelJS dla ramkek i formatowania układu xlsx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="app.js?v=12"></script>
+</body>
+</html>
